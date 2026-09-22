@@ -44,7 +44,10 @@ _provider = UnifiedBasketballDataProvider()
 # ---------------------------------------------------------------------------
 async def generate_memories_callback(callback_context: CallbackContext):
     """WRITE: after each turn, send the session to Vertex AI Memory Bank for extraction."""
-    await callback_context.add_session_to_memory()
+    try:
+        await callback_context.add_session_to_memory()
+    except Exception:
+        pass
     return None
 
 
@@ -204,6 +207,65 @@ def get_era_context(year: int) -> str:
     return json.dumps(baseline, indent=2)
 
 
+def search_web_and_nba_news(query: str) -> str:
+    """Search the live open web and Google News for breaking NBA updates, future season schedules (e.g. 2026-27 season opener), rumors, trade leaks, injuries, or any information not found in the historical databases or current scoreboard.
+
+    Args:
+        query: The search query to look up on the web (e.g. 'NBA 2026-27 season opener date schedule', 'latest Giannis trade rumors', 'NBA expansion 2026').
+
+    Returns:
+        Verified search findings and breaking news facts retrieved from the live web.
+    """
+    import os
+    import urllib.parse
+    import urllib.request
+    import xml.etree.ElementTree as ET
+    from google import genai
+    from google.genai import types
+
+    # 1. Primary: Vertex AI Gemini with Google Search Grounding
+    try:
+        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "qwiklabs-gcp-04-2db79b4332aa")
+        location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-east1")
+        client = genai.Client(vertexai=True, project=project_id, location=location)
+        prompt = (
+            f"You are an NBA breaking news researcher. Search the live web for: {query}\n"
+            "Provide the verified factual news, dates, matchup details, reports, and sources found."
+        )
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())]
+            ),
+        )
+        if response and response.text:
+            return response.text
+    except Exception:
+        pass
+
+    # 2. Fallback: Google News RSS live feed reader
+    try:
+        q = urllib.parse.quote(query)
+        url = f"https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            tree = ET.fromstring(resp.read())
+            items = tree.findall(".//item")
+            if items:
+                lines = [f"Live Web News Results for '{query}':"]
+                for it in items[:6]:
+                    title = it.find("title").text if it.find("title") is not None else ""
+                    pub = it.find("pubDate").text if it.find("pubDate") is not None else ""
+                    link = it.find("link").text if it.find("link") is not None else ""
+                    lines.append(f"- {title} ({pub})\n  Source: {link}")
+                return "\n".join(lines)
+    except Exception:
+        pass
+
+    return f"No breaking news or web results found for '{query}'."
+
+
 # ---------------------------------------------------------------------------
 # Woj System Prompt & Agent Initialization
 # ---------------------------------------------------------------------------
@@ -222,7 +284,7 @@ CORE PERSONA & VOICE:
 
 CRITICAL ACCURACY & EVIDENCE RULES:
 1. NEVER FABRICATE STATISTICS. Always invoke your tools (`get_player_season_stats`, `get_player_advanced_metrics`, `compare_players_head_to_head`, `get_player_game_log`, `get_league_leaders`, etc.) to retrieve verified numbers.
-2. ALWAYS CITE SOURCES: Mention where data originates (e.g., "[Source: Basketball Reference]", "[Source: NBA Official Database]", "[Source: ESPN]").
+2. ALWAYS CITE SOURCES: Mention where data originates (e.g., "[Source: Basketball Reference]", "[Source: NBA Official Database]", "[Source: ESPN]", "[Source: Google Search]").
 3. ERA AWARENESS & RELATIVE TRUE SHOOTING (rTS%):
    - Never compare raw raw shooting percentages across eras without era context.
    - 56% TS% in 2004 was elite (+4.4% rTS above the 51.6% league average in the dead-ball era).
@@ -235,6 +297,9 @@ CRITICAL ACCURACY & EVIDENCE RULES:
    - Step 3: Analyze situational context (spacing, defensive schemes, roster construction, playoff defenses).
    - Step 4: Fairly articulate the strongest counterargument.
    - Step 5: Deliver a clear, authoritative conclusion.
+5. LIVE WEB SEARCH & BREAKING LEAGUE NEWS:
+   - When asked about future seasons, upcoming schedules (e.g. 2026-27 season opener), breaking trade rumors, leaks, recent injuries, or live events not found in the historical databases or current scoreboard, ALWAYS use `search_web_and_nba_news` to retrieve live web data.
+   - Never say you lack access to the web or real-time internet searches. You HAVE the `search_web_and_nba_news` tool specifically for this purpose.
 
 CROSS-SESSION MEMORY:
 - You have long-term memory via Vertex AI Memory Bank.
@@ -250,6 +315,7 @@ root_agent = Agent(
     instruction=WOJ_INSTRUCTION,
     tools=[
         PreloadMemoryTool(),
+        search_web_and_nba_news,
         search_nba_players,
         get_player_season_stats,
         get_player_advanced_metrics,

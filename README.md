@@ -28,6 +28,7 @@ Woj is built using the **Google Cloud Agent Development Kit (ADK)** and leverage
 | **Firestore** | Session and conversational state storage preserving multi-turn context. |
 | **Cloud Storage** | Bucket storage for datasets, generated assets, and intermediate scraping cache. |
 | **RAG (Grounding & Retrieval)** | Retrieval-augmented generation architecture grounding agent reasoning on factual basketball history. |
+| **Google Search Grounding & Web Search** | Live web search engine (`search_web_and_nba_news`) for breaking news, upcoming schedules (e.g. 2026-27 season opener), leaks, and real-time trade reports. |
 | **Imagen on Vertex AI** | Generates visual matchup previews and insider persona graphics. |
 | **A2UI (Agent-to-User Interface)** | Emits structured UI cards, comparison tables, and list layouts rendered natively in the frontend. |
 | **Cloud Run** | Serverless deployment hosting the FastAPI proxy and web chat interface. |
@@ -47,6 +48,9 @@ Woj is built using the **Google Cloud Agent Development Kit (ADK)** and leverage
 
 4. **Modern Dark Arena Chat Interface**:
    Custom web UI with a dark arena broadcast aesthetic, real-time status indicators, breaking news capabilities ticker, and clickable quick-action chips.
+
+5. **Live Web Search & Breaking News Grounding**:
+   Seamlessly falls back to real-time Google web search and Google News for future season schedules, breaking trade rumors, leaks, and events not yet indexed in historical databases.
 
 ---
 

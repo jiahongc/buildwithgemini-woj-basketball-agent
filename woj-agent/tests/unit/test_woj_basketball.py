@@ -4,7 +4,7 @@ Unit tests for Woj Basketball Intelligence Agent and Data Provider.
 
 import json
 import pytest
-from app.agent import root_agent, search_nba_players, get_player_season_stats, get_player_advanced_metrics, compare_players_head_to_head, get_era_context
+from app.agent import root_agent, search_nba_players, get_player_season_stats, get_player_advanced_metrics, compare_players_head_to_head, get_era_context, search_web_and_nba_news
 from app.data.historical_db import calculate_relative_ts, get_era_baseline
 from app.data.query_engine import calculate_ts_percentage, calculate_efg_percentage, aggregate_game_logs
 from app.data.unified_provider import UnifiedBasketballDataProvider
@@ -86,3 +86,10 @@ def test_game_log_aggregation():
     assert summary["reb"] == 8.0
     assert summary["ast"] == 6.0
     assert summary["record"] == "1-1"
+
+
+def test_search_web_and_nba_news_tool():
+    """Verify that search_web_and_nba_news returns informative results without raising exceptions."""
+    result = search_web_and_nba_news("NBA 2026-27 season opener schedule")
+    assert isinstance(result, str)
+    assert len(result) > 20
